@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BFT Consensus Control Room — HotStuff Interbank Ledger</title>
+
+<style>
+/* =========================================================================
+   BFT CONSENSUS CONTROL ROOM
+   Single self-contained file. No external CDNs / fonts / network calls.
+   Dark "observatory" aesthetic. Monospace for all hashes & log.
+   ========================================================================= */
+
+:root{
+  --bg:#0a0e13;
+  --panel:#111820;
+  --panel2:#0d141b;
+  --line:#1d2833;
+  --line2:#2a3947;
+  --ink:#c9d6e2;
+  --ink-dim:#7c8b9b;
+  --ink-faint:#54637140;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+
+  /* phase palette (one distinct hue per HotStuff phase) */
+  --p-newview:#8b97a6;
+  --p-prepare:#4a9eff;
+  --p-precommit:#22d3ee;
+  --p-commit:#f5a623;   /* COMMIT = the LOCK phase = safety-critical (amber) */
+  --p-decide:#4ade80;
+  --p-generic:#5a6b7a;
+
+  --ok:#4ade80;
+  --bad:#f0596a;
+  --warn:#f5a623;
+  --qc:#b57bff;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:var(--sans);font-size:13px;line-height:1.4;
+  overflow:hidden; /* no page scroll; panels scroll internally */
+}
+a{color:var(--p-prepare)}
+a:hover{color:#7bb8ff}
+.mono{font-family:var(--mono)}
+
+/* ---- overall grid ------------------------------------------------------- */
+#app{
+  height:100vh;display:grid;gap:8px;padding:8px;
+  grid-template-rows:auto 1fr auto;
+}
+.stage{
+  display:grid;gap:8px;min-height:0;
+  grid-template-columns:300px 1fr 340px;
+  grid-template-rows:1fr 1fr;
+  grid-template-areas:
+    "replicas bus ledger"
+    "replicas tree log";
+}
+#panel-replicas{grid-area:replicas}
+#panel-bus{grid-area:bus}
+#panel-ledger{grid-area:ledger}
+#panel-tree{grid-area:tree}
+#panel-log{grid-area:log}
+
+.panel{
+  background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;
+}
+.panel > .phead{
+  flex:0 0 auto;display:flex;align-items:center;gap:8px;
+  padding:7px 11px;border-bottom:1px solid var(--line);
+  font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-dim);
+}
+.panel > .phead .grow{flex:1}
+.pbody{flex:1;min-height:0;overflow:auto;padding:11px}
+
+/* thin scrollbars */
+.pbody::-webkit-scrollbar,.log-list::-webkit-scrollbar{width:9px;height:9px}
+.pbody::-webkit-scrollbar-thumb,.log-list::-webkit-scrollbar-thumb{background:#26333f;border-radius:6px;border:2px solid var(--panel)}
+.pbody::-webkit-scrollbar-track{background:transparent}
+
+/* =========================================================================
+   TOP BAR
+   ========================================================================= */
+#topbar{
+  background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  display:flex;align-items:center;gap:18px;padding:9px 14px;flex-wrap:wrap;
+}
+.brand{display:flex;flex-direction:column;line-height:1.15}
+.brand b{font-size:13px;letter-spacing:.02em}
+.brand span{font-size:10px;color:var(--ink-dim);letter-spacing:.08em;text-transform:uppercase}
+.constants{font-family:var(--mono);font-size:11px;color:var(--ink-dim)}
+.constants b{color:var(--ink)}
+
+select{
+  background:var(--panel2);color:var(--ink);border:1px solid var(--line2);
+  border-radius:6px;padding:6px 9px;font-family:var(--sans);font-size:12px;cursor:pointer;
+}
+select:focus{outline:1px solid var(--p-prepare)}
+
+.tb-block{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.tb-label{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-dim)}
+.view-num{font-family:var(--mono);font-size:30px;font-weight:600;line-height:1;color:#fff}
+.leader-chip{
+  display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:17px;font-weight:600;
+}
+.leader-chip .crown{font-size:15px}
+
+.phase-track{display:flex;align-items:center;gap:6px;margin-left:auto}
+.phase-pill{
+  font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;
+  padding:5px 10px;border-radius:20px;border:1px solid var(--line2);
+  color:var(--ink-dim);background:var(--panel2);transition:all .25s ease;white-space:nowrap;
+}
+.phase-pill.active{color:#0a0e13;border-color:transparent}
+.phase-arrow{color:var(--ink-faint);font-size:11px}
+.phase-pill[data-p="prepare"].active{background:var(--p-prepare)}
+.phase-pill[data-p="pre-commit"].active{background:var(--p-precommit)}
+.phase-pill[data-p="commit"].active{background:var(--p-commit)}
+.phase-pill[data-p="decide"].active{background:var(--p-decide)}
+
+.safety-flag{
+  display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;
+  padding:5px 10px;border-radius:6px;border:1px solid var(--line2);color:var(--ink-dim);
+}
+.safety-flag.safe{color:var(--ok);border-color:#1f4a34;background:#0e2016}
+.safety-flag.violation{color:#fff;border-color:var(--bad);background:#3a1418;animation:blink .7s steps(2,end) infinite}
+@keyframes blink{50%{opacity:.4}}
+
+/* =========================================================================
+   REPLICA PANEL
+   ========================================================================= */
+#replica-grid{display:grid;grid-template-columns:1fr;gap:9px}
+.node{
+  position:relative;background:var(--panel2);border:1px solid var(--line);
+  border-radius:7px;padding:9px 10px;transition:border-color .3s,background .3s,box-shadow .3s;
+  cursor:default;
+}
+.node.leader{border-color:#4a6a24;box-shadow:inset 0 0 0 1px #3a5a1e}
+.node.byzantine{border-color:#7a3a1e;background:#1c110b}
+.node.crashed{opacity:.5;filter:grayscale(.7)}
+.node.active::after{
+  content:"";position:absolute;inset:-1px;border-radius:7px;pointer-events:none;
+  box-shadow:0 0 0 2px currentColor;color:var(--p-prepare);
+  animation:pulse .7s ease-out;
+}
+@keyframes pulse{from{opacity:.9;transform:scale(1)}to{opacity:0;transform:scale(1.03)}}
+
+.node-head{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.node-avatar{
+  width:26px;height:26px;border-radius:6px;display:grid;place-items:center;
+  font-family:var(--mono);font-weight:700;font-size:13px;color:#0a0e13;flex:0 0 auto;
+}
+.node-name{font-family:var(--mono);font-size:12px;font-weight:600}
+.node-name small{color:var(--ink-dim);font-weight:400}
+.badge{
+  margin-left:auto;font-size:9px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;
+  padding:3px 7px;border-radius:5px;background:#1d2833;color:var(--ink-dim);white-space:nowrap;
+}
+.badge.LEADER{background:#2f4517;color:#a6e05a}
+.badge.BYZANTINE{background:#4a2411;color:#f5a260}
+.badge.CRASHED{background:#33232a;color:#e88}
+.node-stats{display:grid;grid-template-columns:1fr 1fr;gap:3px 10px;font-family:var(--mono);font-size:11px}
+.node-stats .k{color:var(--ink-dim)}
+.node-stats .v{color:var(--ink);text-align:right}
+.node-last{
+  margin-top:6px;padding-top:6px;border-top:1px dashed var(--line);
+  font-family:var(--mono);font-size:10.5px;color:var(--ink-dim);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+
+/* =========================================================================
+   MESSAGE BUS
+   ========================================================================= */
+#bus-wrap{flex:1;display:grid;place-items:center;min-height:0}
+#bus-svg{width:100%;height:100%;max-height:100%}
+.bus-node-ring{fill:var(--panel2);stroke:var(--line2);stroke-width:1.5}
+.bus-node-ring.leader{stroke:#7fbf3a;stroke-width:2.5}
+.bus-node-ring.crashed{stroke:#4a3a3a;stroke-dasharray:3 3}
+.bus-node-ring.byz{stroke:#c47a3a;stroke-width:2.5}
+.bus-node-label{font-family:var(--mono);font-weight:700;font-size:15px;fill:var(--ink);text-anchor:middle;dominant-baseline:central}
+.bus-edge{stroke:var(--line);stroke-width:1;fill:none}
+.bus-legend text{font-family:var(--mono);font-size:9px;fill:var(--ink-dim)}
+
+/* =========================================================================
+   LEDGER PANEL
+   ========================================================================= */
+.ledger-bars{display:flex;flex-direction:column;gap:9px;margin-bottom:12px}
+.lrow{display:grid;grid-template-columns:20px 1fr 54px;align-items:center;gap:8px}
+.lrow .lname{font-family:var(--mono);font-weight:700;font-size:13px}
+.lbar-track{height:16px;background:var(--panel2);border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.lbar-fill{height:100%;border-radius:4px 0 0 4px;transition:width .6s cubic-bezier(.4,0,.2,1);}
+.lrow .lval{font-family:var(--mono);font-size:12px;text-align:right;color:var(--ink)}
+.lrow.flash .lval{animation:valflash .7s ease}
+@keyframes valflash{0%{color:var(--p-decide)}100%{color:var(--ink)}}
+.conserve{
+  font-family:var(--mono);font-size:11px;padding:6px 9px;border-radius:6px;
+  border:1px solid #1f4a34;background:#0e2016;color:var(--ok);
+  display:flex;align-items:center;gap:7px;margin-bottom:11px;
+}
+.conserve.bad{border-color:var(--bad);background:#2a1418;color:var(--bad)}
+.hist-title{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:6px}
+.hist{display:flex;flex-direction:column;gap:5px}
+.hrow{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;padding:5px 7px;border-radius:5px;background:var(--panel2);border:1px solid var(--line)}
+.hrow .hcmd{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.htag{font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;letter-spacing:.04em}
+.htag.OK{background:#12331f;color:var(--ok)}
+.htag.REJECT{background:#33161a;color:var(--bad)}
+
+/* =========================================================================
+   BLOCK TREE
+   ========================================================================= */
+#tree-scroll{flex:1;overflow:auto;padding:10px}
+#tree-svg{display:block}
+.blk rect{transition:fill .3s,stroke .3s}
+.blk .b-hash{font-family:var(--mono);font-weight:700;font-size:12px;fill:#fff}
+.blk .b-meta{font-family:var(--mono);font-size:9.5px;fill:var(--ink-dim)}
+.blk .b-cmd{font-family:var(--mono);font-size:9px;fill:var(--ink-dim)}
+.tree-edge{stroke:var(--line2);stroke-width:1.5;fill:none}
+.tree-edge.chain{stroke:var(--p-decide);stroke-width:2.5}
+.tree-legend text{font-family:var(--mono);font-size:9px;fill:var(--ink-dim)}
+
+/* =========================================================================
+   EVENT LOG
+   ========================================================================= */
+.log-filters{display:flex;gap:6px;align-items:center;padding:6px 8px;border-bottom:1px solid var(--line);flex:0 0 auto}
+.log-filters select{padding:4px 6px;font-size:11px}
+.log-list{flex:1;overflow:auto;font-family:var(--mono);font-size:11px;padding:4px 0}
+.logline{
+  display:flex;gap:8px;padding:2px 10px;cursor:pointer;white-space:nowrap;
+  border-left:2px solid transparent;
+}
+.logline:hover{background:#182029}
+.logline.cur{background:#1a2531;border-left-color:#fff}
+.logline .lt{color:var(--ink-dim);width:42px;flex:0 0 auto;text-align:right}
+.logline .lk{width:82px;flex:0 0 auto;font-weight:700}
+.logline .ld{color:var(--ink-dim);overflow:hidden;text-overflow:ellipsis}
+.logline.future{opacity:.34}
+
+/* =========================================================================
+   PLAYBACK CONTROLS
+   ========================================================================= */
+#controls{
+  background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  display:flex;align-items:center;gap:14px;padding:8px 14px;
+}
+.btn{
+  background:var(--panel2);border:1px solid var(--line2);color:var(--ink);
+  border-radius:6px;height:32px;min-width:32px;padding:0 10px;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:13px;
+}
+.btn:hover{border-color:#3a4d5e;background:#16202a}
+.btn.primary{background:#1d3a24;border-color:#2f5a34;color:#bff0c8;min-width:44px}
+.btn:active{transform:translateY(1px)}
+#timeline{flex:1;display:flex;align-items:center;gap:10px}
+#scrub{flex:1;-webkit-appearance:none;appearance:none;height:6px;border-radius:4px;
+  background:linear-gradient(to right,var(--line2) 0%,var(--line2) 100%);cursor:pointer}
+#scrub::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:#fff;border:2px solid var(--p-prepare);cursor:pointer}
+#scrub::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#fff;border:2px solid var(--p-prepare);cursor:pointer}
+.clock{font-family:var(--mono);font-size:12px;color:var(--ink-dim);white-space:nowrap}
+.clock b{color:var(--ink)}
+.speed{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--ink-dim)}
+
+/* floating tooltip */
+#tip{
+  position:fixed;z-index:50;pointer-events:none;max-width:280px;
+  background:#0a1016;border:1px solid var(--line2);border-radius:7px;padding:9px 11px;
+  font-family:var(--mono);font-size:11px;color:var(--ink);box-shadow:0 8px 24px #0008;
+  opacity:0;transition:opacity .12s;
+}
+#tip.on{opacity:1}
+#tip .tt-title{font-weight:700;margin-bottom:5px;color:#fff}
+#tip .tt-row{display:flex;justify-content:space-between;gap:14px}
+#tip .tt-row .k{color:var(--ink-dim)}
+
+@media (max-width:1100px){
+  .stage{grid-template-columns:260px 1fr;grid-template-rows:auto auto auto;
+    grid-template-areas:"replicas bus" "replicas ledger" "tree log";}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ===================== TOP BAR ===================== -->
+  <header id="topbar">
+    <div class="brand">
+      <b>Consensus Control Room</b>
+      <span>HotStuff BFT · Interbank Settlement Ledger</span>
+    </div>
+    <select id="scenario" title="Scenario"></select>
+    <span class="constants">n=<b>4</b> · f=<b>1</b> · quorum=<b>3</b></span>
+
+    <div class="tb-block">
+      <span class="tb-label">View</span>
+      <span class="view-num mono" id="view-num">0</span>
+    </div>
+    <div class="tb-block">
+      <span class="tb-label">Leader</span>
+      <span class="leader-chip" id="leader-chip"><span class="crown">👑</span><span id="leader-name">—</span></span>
+    </div>
+
+    <div class="phase-track" id="phase-track">
+      <span class="phase-pill" data-p="prepare">Prepare</span><span class="phase-arrow">›</span>
+      <span class="phase-pill" data-p="pre-commit">Pre-Commit</span><span class="phase-arrow">›</span>
+      <span class="phase-pill" data-p="commit">Commit · Lock</span><span class="phase-arrow">›</span>
+      <span class="phase-pill" data-p="decide">Decide</span>
+    </div>
+    <div class="safety-flag safe" id="safety-flag">✓ SAFE</div>
+  </header>
+
+  <!-- ===================== STAGE ===================== -->
+  <div class="stage">
+
+    <!-- REPLICAS -->
+    <section class="panel" id="panel-replicas">
+      <div class="phead"><span>Replicas</span><span class="grow"></span><span class="mono" style="text-transform:none;letter-spacing:0">banks A·B·C·D</span></div>
+      <div class="pbody"><div id="replica-grid"></div></div>
+    </section>
+
+    <!-- MESSAGE BUS -->
+    <section class="panel" id="panel-bus">
+      <div class="phead"><span>Message Bus</span><span class="grow"></span><span class="mono" id="bus-hint" style="text-transform:none;letter-spacing:0">idle</span></div>
+      <div id="bus-wrap"><svg id="bus-svg" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet"></svg></div>
+    </section>
+
+    <!-- LEDGER -->
+    <section class="panel" id="panel-ledger">
+      <div class="phead"><span>Ledger</span><span class="grow"></span><span class="mono" style="text-transform:none;letter-spacing:0">state machine</span></div>
+      <div class="pbody">
+        <div class="ledger-bars" id="ledger-bars"></div>
+        <div class="conserve" id="conserve"></div>
+        <div class="hist-title">Transfer history</div>
+        <div class="hist" id="hist"></div>
+      </div>
+    </section>
+
+    <!-- BLOCK TREE -->
+    <section class="panel" id="panel-tree">
+      <div class="phead"><span>Block Tree</span><span class="grow"></span><span class="mono" style="text-transform:none;letter-spacing:0">parent-linked · three-chain = committed</span></div>
+      <div id="tree-scroll"><svg id="tree-svg"></svg></div>
+    </section>
+
+    <!-- EVENT LOG -->
+    <section class="panel" id="panel-log">
+      <div class="phead"><span>Event Log</span></div>
+      <div class="log-filters">
+        <span class="mono" style="color:var(--ink-dim)">filter</span>
+        <select id="filter-replica"><option value="">all replicas</option><option value="0">A·0</option><option value="1">B·1</option><option value="2">C·2</option><option value="3">D·3</option><option value="null">bus/checker</option></select>
+        <select id="filter-kind"><option value="">all kinds</option></select>
+      </div>
+      <div class="log-list" id="log-list"></div>
+    </section>
+  </div>
+
+  <!-- ===================== CONTROLS ===================== -->
+  <footer id="controls">
+    <button class="btn" id="btn-back" title="Step back one event">⏮</button>
+    <button class="btn primary" id="btn-play" title="Play / Pause">▶</button>
+    <button class="btn" id="btn-fwd" title="Step forward one event">⏭</button>
+    <div id="timeline">
+      <span class="clock">t <b id="clock-t">0.00</b>s</span>
+      <input type="range" id="scrub" min="0" max="1000" value="0" step="1">
+      <span class="clock">evt <b id="clock-i">0</b>/<span id="clock-n">0</span></span>
+    </div>
+    <div class="speed">
+      speed
+      <select id="speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected="">1×</option><option value="2">2×</option><option value="4">4×</option></select>
+    </div>
+  </footer>
+</div>
+
+<div id="tip"></div>
+
+<script src="runs.js"></script>
+<script>
+"use strict";
+/* =========================================================================
+   0. STATIC CONFIG
+   ========================================================================= */
+const BANKS = ["A","B","C","D"];
+const AVATAR_COLORS = ["#5aa9ff","#f5a623","#22d3ee","#b57bff"]; // A B C D
+const PHASE_COLOR = {
+  "new-view":  getVar("--p-newview"),
+  "prepare":   getVar("--p-prepare"),
+  "pre-commit":getVar("--p-precommit"),
+  "commit":    getVar("--p-commit"),
+  "decide":    getVar("--p-decide"),
+  "generic":   getVar("--p-generic")
+};
+const KIND_COLOR = {
+  start:"#8b97a6","NEW-VIEW":"#8b97a6",PROPOSE:getVar("--p-prepare"),vote:"#5f86b0",
+  QC:getVar("--qc"),LOCK:getVar("--p-commit"),DECIDE:getVar("--p-decide"),
+  TIMEOUT:getVar("--warn"),reject:getVar("--bad"),DROP:getVar("--bad"),
+  CRASH:getVar("--bad"),RESTART:getVar("--p-precommit"),EQUIVOCATE:getVar("--bad"),
+  CENSOR:getVar("--bad"),converge:getVar("--ok"),DIVERGE:getVar("--bad"),
+  SAFE:getVar("--ok"),"SAFETY-VIOLATION":getVar("--bad")
+};
+function getVar(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+
+/* Ring layout for the message-bus nodes (viewBox 0..400). */
+const NODE_POS = [
+  {x:200,y:66},   // A (0) top
+  {x:334,y:200},  // B (1) right
+  {x:200,y:334},  // C (2) bottom
+  {x:66, y:200}   // D (3) left
+];
+const NODE_R = 30;
+
+/* =========================================================================
+   1. SCENARIOS  (each = a JSON array of timestamped events)
+      Default = "Double-spend" (the seed data provided, extended a little).
+   ========================================================================= */
+
+// ---- Double-spend (the safety-critical headline scenario) ---------------
+const EV_DOUBLESPEND = [
+  {"t":0.00,"replica":0,"kind":"start","view":0,"detail":"R0 start · leader(1)=1 · A=100 B=100 C=0 D=100"},
+  {"t":0.05,"replica":1,"kind":"NEW-VIEW","view":1,"phase":"new-view","detail":"R1 leads view 1"},
+  {"t":0.10,"replica":1,"kind":"PROPOSE","view":1,"phase":"prepare","node":"a11f02","parent":"000000","cmd":"TRANSFER(A->B 80 #1)","from":1,"to":0,"detail":"broadcast PREPARE a11f02"},
+  {"t":0.14,"replica":0,"kind":"vote","view":1,"phase":"prepare","node":"a11f02","from":0,"to":1,"detail":"R0 vote PREPARE"},
+  {"t":0.15,"replica":2,"kind":"vote","view":1,"phase":"prepare","node":"a11f02","from":2,"to":1,"detail":"R2 vote PREPARE"},
+  {"t":0.16,"replica":3,"kind":"vote","view":1,"phase":"prepare","node":"a11f02","from":3,"to":1,"detail":"R3 vote PREPARE"},
+  {"t":0.18,"replica":1,"kind":"QC","view":1,"phase":"prepare","node":"a11f02","qc":{"type":"prepare","view":1,"node":"a11f02","signers":[0,1,2]},"prepare_qc_view":1,"detail":"prepareQC(v1) formed · signers 0,1,2"},
+  {"t":0.22,"replica":1,"kind":"PROPOSE","view":1,"phase":"pre-commit","node":"a11f02","from":1,"to":0,"detail":"broadcast PRE-COMMIT a11f02"},
+  {"t":0.26,"replica":1,"kind":"QC","view":1,"phase":"pre-commit","node":"a11f02","qc":{"type":"pre-commit","view":1,"node":"a11f02","signers":[0,1,3]},"detail":"pre-commitQC(v1) formed"},
+  {"t":0.30,"replica":3,"kind":"LOCK","view":1,"phase":"commit","node":"a11f02","locked_qc_view":1,"detail":"R3 LOCKED on a11f02 (commitQC v1)"},
+  {"t":0.31,"replica":0,"kind":"LOCK","view":1,"phase":"commit","node":"a11f02","locked_qc_view":1,"detail":"R0 LOCKED on a11f02"},
+  {"t":0.32,"replica":2,"kind":"LOCK","view":1,"phase":"commit","node":"a11f02","locked_qc_view":1,"detail":"R2 LOCKED on a11f02"},
+  {"t":0.38,"replica":1,"kind":"DECIDE","view":1,"phase":"decide","node":"a11f02","cmd":"TRANSFER(A->B 80 #1)","outcome":"OK","balances":{"A":20,"B":180,"C":0,"D":100},"detail":"DECIDE A->B 80 = OK (A:100→20, B:100→180)"},
+  {"t":0.42,"replica":2,"kind":"NEW-VIEW","view":2,"phase":"new-view","detail":"rotate leader → R2 (leader(2)=2)"},
+  {"t":0.55,"replica":2,"kind":"PROPOSE","view":2,"phase":"prepare","node":"c73a90","parent":"a11f02","cmd":"TRANSFER(A->C 80 #2)","from":2,"to":3,"detail":"broadcast PREPARE c73a90 (double-spend attempt)"},
+  {"t":0.59,"replica":3,"kind":"vote","view":2,"phase":"prepare","node":"c73a90","from":3,"to":2,"detail":"R3 vote PREPARE (consensus orders it; SM will judge)"},
+  {"t":0.60,"replica":0,"kind":"vote","view":2,"phase":"prepare","node":"c73a90","from":0,"to":2,"detail":"R0 vote PREPARE"},
+  {"t":0.62,"replica":2,"kind":"QC","view":2,"phase":"prepare","node":"c73a90","qc":{"type":"prepare","view":2,"node":"c73a90","signers":[0,2,3]},"prepare_qc_view":2,"detail":"prepareQC(v2) formed"},
+  {"t":0.70,"replica":2,"kind":"LOCK","view":2,"phase":"commit","node":"c73a90","locked_qc_view":2,"detail":"replicas LOCKED on c73a90"},
+  {"t":0.80,"replica":2,"kind":"DECIDE","view":2,"phase":"decide","node":"c73a90","cmd":"TRANSFER(A->C 80 #2)","outcome":"REJECT(insufficient_funds)","balances":{"A":20,"B":180,"C":0,"D":100},"detail":"DECIDE A->C 80 = REJECT · A has 20 < 80 (double-spend loser)"},
+  {"t":0.85,"replica":null,"kind":"SAFE","detail":"consensus ordered both; state machine judged one OK, one REJECT · all replicas agree"}
+];
+
+// ---- Happy path ---------------------------------------------------------
+const EV_HAPPY = [
+  {"t":0.00,"replica":1,"kind":"start","view":0,"detail":"clean start · A=100 B=100 C=0 D=100"},
+  {"t":0.06,"replica":1,"kind":"NEW-VIEW","view":1,"phase":"new-view","detail":"R1 leads view 1"},
+  {"t":0.12,"replica":1,"kind":"PROPOSE","view":1,"phase":"prepare","node":"7c01aa","parent":"000000","cmd":"TRANSFER(D->C 40 #1)","from":1,"to":0,"detail":"broadcast PREPARE 7c01aa"},
+  {"t":0.16,"replica":0,"kind":"vote","view":1,"phase":"prepare","node":"7c01aa","from":0,"to":1,"detail":"R0 vote PREPARE"},
+  {"t":0.17,"replica":2,"kind":"vote","view":1,"phase":"prepare","node":"7c01aa","from":2,"to":1,"detail":"R2 vote PREPARE"},
+  {"t":0.18,"replica":3,"kind":"vote","view":1,"phase":"prepare","node":"7c01aa","from":3,"to":1,"detail":"R3 vote PREPARE"},
+  {"t":0.22,"replica":1,"kind":"QC","view":1,"phase":"prepare","node":"7c01aa","qc":{"type":"prepare","view":1,"node":"7c01aa","signers":[0,2,3]},"prepare_qc_view":1,"detail":"prepareQC(v1) formed"},
+  {"t":0.28,"replica":1,"kind":"PROPOSE","view":1,"phase":"pre-commit","node":"7c01aa","from":1,"to":0,"detail":"broadcast PRE-COMMIT"},
+  {"t":0.34,"replica":1,"kind":"QC","view":1,"phase":"pre-commit","node":"7c01aa","qc":{"type":"pre-commit","view":1,"node":"7c01aa","signers":[0,1,2]},"detail":"pre-commitQC(v1) formed"},
+  {"t":0.40,"replica":0,"kind":"LOCK","view":1,"phase":"commit","node":"7c01aa","locked_qc_view":1,"detail":"replicas LOCKED on 7c01aa"},
+  {"t":0.48,"replica":1,"kind":"DECIDE","view":1,"phase":"decide","node":"7c01aa","cmd":"TRANSFER(D->C 40 #1)","outcome":"OK","balances":{"A":100,"B":100,"C":40,"D":60},"detail":"DECIDE D->C 40 = OK"},
+  {"t":0.52,"replica":null,"kind":"converge","detail":"all correct replicas converged on committed prefix"},
+  {"t":0.55,"replica":null,"kind":"SAFE","detail":"one leader, one view, quorum reached every phase"}
+];
+
+// ---- Leader crash + view change ----------------------------------------
+const EV_CRASH = [
+  {"t":0.00,"replica":1,"kind":"start","view":0,"detail":"start · A=100 B=100 C=0 D=100"},
+  {"t":0.05,"replica":1,"kind":"NEW-VIEW","view":1,"phase":"new-view","detail":"R1 leads view 1"},
+  {"t":0.11,"replica":1,"kind":"PROPOSE","view":1,"phase":"prepare","node":"b2c110","parent":"000000","cmd":"TRANSFER(B->A 30 #1)","from":1,"to":0,"detail":"broadcast PREPARE b2c110"},
+  {"t":0.15,"replica":0,"kind":"vote","view":1,"phase":"prepare","node":"b2c110","from":0,"to":1,"detail":"R0 vote PREPARE"},
+  {"t":0.16,"replica":2,"kind":"vote","view":1,"phase":"prepare","node":"b2c110","from":2,"to":1,"detail":"R2 vote PREPARE"},
+  {"t":0.20,"replica":1,"kind":"CRASH","view":1,"phase":"prepare","detail":"R1 (leader) CRASHED before forming QC"},
+  {"t":0.55,"replica":0,"kind":"TIMEOUT","view":1,"phase":"prepare","detail":"view-1 timeout fires at correct replicas"},
+  {"t":0.60,"replica":2,"kind":"NEW-VIEW","view":2,"phase":"new-view","detail":"view change → R2 leads view 2 (leader(2)=2)"},
+  {"t":0.66,"replica":2,"kind":"PROPOSE","view":2,"phase":"prepare","node":"b2c110","parent":"000000","cmd":"TRANSFER(B->A 30 #1)","from":2,"to":3,"detail":"R2 re-proposes highest-QC block b2c110"},
+  {"t":0.70,"replica":3,"kind":"vote","view":2,"phase":"prepare","node":"b2c110","from":3,"to":2,"detail":"R3 vote PREPARE"},
+  {"t":0.71,"replica":0,"kind":"vote","view":2,"phase":"prepare","node":"b2c110","from":0,"to":2,"detail":"R0 vote PREPARE"},
+  {"t":0.74,"replica":2,"kind":"QC","view":2,"phase":"prepare","node":"b2c110","qc":{"type":"prepare","view":2,"node":"b2c110","signers":[0,2,3]},"prepare_qc_view":2,"detail":"prepareQC(v2) formed by new leader"},
+  {"t":0.82,"replica":2,"kind":"LOCK","view":2,"phase":"commit","node":"b2c110","locked_qc_view":2,"detail":"replicas LOCKED on b2c110"},
+  {"t":0.90,"replica":1,"kind":"RESTART","view":2,"detail":"R1 restarts, syncs to view 2"},
+  {"t":0.96,"replica":2,"kind":"DECIDE","view":2,"phase":"decide","node":"b2c110","cmd":"TRANSFER(B->A 30 #1)","outcome":"OK","balances":{"A":130,"B":70,"C":0,"D":100},"detail":"DECIDE B->A 30 = OK · liveness restored after crash"},
+  {"t":1.00,"replica":null,"kind":"SAFE","detail":"f=1 crash tolerated · quorum 3 of remaining correct replicas"}
+];
+
+// ---- Byzantine leader (equivocation + censorship, defeated) -------------
+const EV_BYZ = [
+  {"t":0.00,"replica":3,"kind":"start","view":0,"detail":"start · A=100 B=100 C=0 D=100"},
+  {"t":0.05,"replica":3,"kind":"NEW-VIEW","view":3,"phase":"new-view","detail":"leader(3)=3 · R3 leads view 3"},
+  {"t":0.10,"replica":3,"kind":"EQUIVOCATE","view":3,"phase":"prepare","node":"e5aa01","parent":"000000","cmd":"TRANSFER(A->B 50 #1)","from":3,"to":0,"detail":"BYZANTINE R3 proposes block X=e5aa01 to {0,1}"},
+  {"t":0.12,"replica":3,"kind":"EQUIVOCATE","view":3,"phase":"prepare","node":"e5bb02","parent":"000000","cmd":"TRANSFER(A->C 50 #1)","from":3,"to":2,"detail":"…and conflicting block Y=e5bb02 to {2} (equivocation)"},
+  {"t":0.18,"replica":0,"kind":"vote","view":3,"phase":"prepare","node":"e5aa01","from":0,"to":3,"detail":"R0 sees X first → votes X"},
+  {"t":0.19,"replica":1,"kind":"vote","view":3,"phase":"prepare","node":"e5aa01","from":1,"to":3,"detail":"R1 votes X"},
+  {"t":0.20,"replica":2,"kind":"vote","view":3,"phase":"prepare","node":"e5bb02","from":2,"to":3,"detail":"R2 votes Y — split, neither reaches quorum 3"},
+  {"t":0.30,"replica":3,"kind":"CENSOR","view":3,"phase":"prepare","detail":"BYZANTINE R3 withholds QC (censors) — no progress"},
+  {"t":0.55,"replica":0,"kind":"TIMEOUT","view":3,"phase":"prepare","detail":"correct replicas time out on faulty leader"},
+  {"t":0.60,"replica":0,"kind":"NEW-VIEW","view":4,"phase":"new-view","detail":"view change → leader(4)=0 · R0 leads view 4"},
+  {"t":0.68,"replica":0,"kind":"PROPOSE","view":4,"phase":"prepare","node":"f7cc10","parent":"000000","cmd":"TRANSFER(A->B 50 #1)","from":0,"to":1,"detail":"honest leader R0 proposes single block f7cc10"},
+  {"t":0.72,"replica":1,"kind":"vote","view":4,"phase":"prepare","node":"f7cc10","from":1,"to":0,"detail":"R1 vote PREPARE"},
+  {"t":0.73,"replica":2,"kind":"vote","view":4,"phase":"prepare","node":"f7cc10","from":2,"to":0,"detail":"R2 vote PREPARE"},
+  {"t":0.76,"replica":0,"kind":"QC","view":4,"phase":"prepare","node":"f7cc10","qc":{"type":"prepare","view":4,"node":"f7cc10","signers":[0,1,2]},"prepare_qc_view":4,"detail":"prepareQC(v4) — quorum reached under honest leader"},
+  {"t":0.84,"replica":1,"kind":"LOCK","view":4,"phase":"commit","node":"f7cc10","locked_qc_view":4,"detail":"replicas LOCKED on f7cc10"},
+  {"t":0.92,"replica":0,"kind":"DECIDE","view":4,"phase":"decide","node":"f7cc10","cmd":"TRANSFER(A->B 50 #1)","outcome":"OK","balances":{"A":50,"B":150,"C":0,"D":100},"detail":"DECIDE A->B 50 = OK · equivocation never committed either fork"},
+  {"t":0.98,"replica":null,"kind":"SAFE","detail":"no conflicting block reached quorum · safety held against Byzantine leader"}
+];
+
+// ---- Chained (pipelined commits across views → three-chain) --------------
+const EV_CHAINED = [
+  {"t":0.00,"replica":1,"kind":"start","view":0,"detail":"start · A=100 B=100 C=0 D=100"},
+  {"t":0.05,"replica":1,"kind":"NEW-VIEW","view":1,"phase":"new-view","detail":"R1 leads view 1"},
+  {"t":0.10,"replica":1,"kind":"PROPOSE","view":1,"phase":"prepare","node":"c10001","parent":"000000","cmd":"TRANSFER(A->B 10 #1)","from":1,"to":0,"detail":"propose block 1"},
+  {"t":0.14,"replica":0,"kind":"vote","view":1,"phase":"prepare","node":"c10001","from":0,"to":1,"detail":"votes"},
+  {"t":0.16,"replica":1,"kind":"QC","view":1,"phase":"prepare","node":"c10001","qc":{"type":"prepare","view":1,"node":"c10001","signers":[0,1,2]},"prepare_qc_view":1,"detail":"QC1 (generic)"},
+  {"t":0.22,"replica":2,"kind":"NEW-VIEW","view":2,"phase":"new-view","detail":"leader → R2"},
+  {"t":0.26,"replica":2,"kind":"PROPOSE","view":2,"phase":"prepare","node":"c20002","parent":"c10001","cmd":"TRANSFER(B->C 10 #2)","from":2,"to":3,"detail":"propose block 2 (extends 1)"},
+  {"t":0.30,"replica":3,"kind":"vote","view":2,"phase":"prepare","node":"c20002","from":3,"to":2,"detail":"votes"},
+  {"t":0.33,"replica":2,"kind":"QC","view":2,"phase":"prepare","node":"c20002","qc":{"type":"prepare","view":2,"node":"c20002","signers":[0,2,3]},"prepare_qc_view":2,"detail":"QC2 → 1-chain on block1"},
+  {"t":0.38,"replica":1,"kind":"DECIDE","view":1,"phase":"decide","node":"c10001","cmd":"TRANSFER(A->B 10 #1)","outcome":"OK","balances":{"A":90,"B":110,"C":0,"D":100},"detail":"block1 COMMITTED via three-chain"},
+  {"t":0.42,"replica":3,"kind":"NEW-VIEW","view":3,"phase":"new-view","detail":"leader → R3"},
+  {"t":0.46,"replica":3,"kind":"PROPOSE","view":3,"phase":"prepare","node":"c30003","parent":"c20002","cmd":"TRANSFER(C->D 5 #3)","from":3,"to":0,"detail":"propose block 3 (extends 2)"},
+  {"t":0.50,"replica":0,"kind":"vote","view":3,"phase":"prepare","node":"c30003","from":0,"to":3,"detail":"votes"},
+  {"t":0.53,"replica":3,"kind":"QC","view":3,"phase":"prepare","node":"c30003","qc":{"type":"prepare","view":3,"node":"c30003","signers":[0,1,3]},"prepare_qc_view":3,"detail":"QC3 → three-chain 1←2←3"},
+  {"t":0.58,"replica":2,"kind":"DECIDE","view":2,"phase":"decide","node":"c20002","cmd":"TRANSFER(B->C 10 #2)","outcome":"OK","balances":{"A":90,"B":100,"C":10,"D":100},"detail":"block2 COMMITTED"},
+  {"t":0.66,"replica":3,"kind":"DECIDE","view":3,"phase":"decide","node":"c30003","cmd":"TRANSFER(C->D 5 #3)","outcome":"OK","balances":{"A":90,"B":100,"C":5,"D":105},"detail":"block3 COMMITTED · pipelined"},
+  {"t":0.72,"replica":null,"kind":"SAFE","detail":"pipelined HotStuff: each QC advances the committed three-chain"}
+];
+
+const SCENARIOS = {
+  "double-spend":{label:"Double-spend (default)", events:EV_DOUBLESPEND},
+  "happy":       {label:"Happy path",             events:EV_HAPPY},
+  "crash":       {label:"Leader crash",           events:EV_CRASH},
+  "byzantine":   {label:"Byzantine leader",       events:EV_BYZ},
+  "chained":     {label:"Chained (pipelined)",    events:EV_CHAINED}
+};
+
+// The active event array. Kept as `EVENTS` per the data contract.
+let EVENTS = EV_DOUBLESPEND;
+
+// --- integration hook: prefer real recorded runs (runs.js) when present ---
+if (typeof window !== "undefined" && window.HOTSTUFF_RUNS) {
+  for (const k in SCENARIOS) {
+    const r = window.HOTSTUFF_RUNS[k];
+    if (r && r.length) SCENARIOS[k].events = r;
+  }
+  EVENTS = SCENARIOS["double-spend"].events;
+}
+
+/* =========================================================================
+   2. STATE RECONSTRUCTION  — pure function of events[0 .. idx)
+      (idx = number of events that have "fired". Scrubbing rebuilds fresh.)
+   ========================================================================= */
+function computeState(idx){
+  const st = {
+    view:0, leader:null, phase:null,
+    replicas:BANKS.map((b,i)=>({
+      i, name:b, crashed:false, byzantine:false,
+      view:0, lockedQC:null, prepareQC:null, committed:0, lastVote:null, lastAction:null
+    })),
+    blocks:new Map(), blockOrder:[],
+    balances:{A:100,B:100,C:0,D:100},
+    history:[],
+    safety:{state:"safe", detail:"awaiting events"}, // safe | violation | unknown
+    activeReplica:null, lastEvent:null
+  };
+
+  for(let k=0;k<idx;k++){
+    const e = EVENTS[k];
+    if(e.view!=null) st.view = e.view;
+    if(e.phase) st.phase = e.phase;
+    if(e.balances) st.balances = Object.assign({}, e.balances);
+
+    // per-replica view tracking
+    if(e.replica!=null && e.view!=null) st.replicas[e.replica].view = e.view;
+
+    // ---- block bookkeeping ----
+    if(e.node){
+      if(!st.blocks.has(e.node)){
+        st.blocks.set(e.node,{hash:e.node,parent:e.parent??null,view:e.view,cmd:e.cmd??null,status:"proposed"});
+        st.blockOrder.push(e.node);
+      }
+      const blk = st.blocks.get(e.node);
+      if(e.cmd) blk.cmd = e.cmd;
+      if(e.parent!=null) blk.parent = e.parent;
+      if(e.view!=null) blk.view = e.view;
+    }
+
+    switch(e.kind){
+      case "vote":
+        if(e.replica!=null){ st.replicas[e.replica].lastVote = (e.phase||"")+" "+(e.node||""); }
+        break;
+      case "QC": {
+        if(e.node && st.blocks.has(e.node)){
+          const b=st.blocks.get(e.node); if(b.status==="proposed") b.status="qc";
+        }
+        if(e.qc && e.replica!=null){ st.replicas[e.replica].prepareQC = e.qc.view; }
+        if(e.prepare_qc_view!=null && e.replica!=null) st.replicas[e.replica].prepareQC = e.prepare_qc_view;
+        break;
+      }
+      case "LOCK":
+        if(e.node && st.blocks.has(e.node)) st.blocks.get(e.node).status="locked";
+        if(e.replica!=null && e.locked_qc_view!=null) st.replicas[e.replica].lockedQC = e.locked_qc_view;
+        break;
+      case "DECIDE":
+        if(e.node && st.blocks.has(e.node)) st.blocks.get(e.node).status="committed";
+        if(e.balances) st.balances = Object.assign({},e.balances);
+        // every non-crashed replica commits this block
+        st.replicas.forEach(r=>{ if(!r.crashed) r.committed++; });
+        st.history.push({cmd:e.cmd||e.detail, outcome:e.outcome||"OK", view:e.view, node:e.node});
+        break;
+      case "CRASH":     if(e.replica!=null) st.replicas[e.replica].crashed=true; break;
+      case "RESTART":   if(e.replica!=null) st.replicas[e.replica].crashed=false; break;
+      case "EQUIVOCATE":
+      case "CENSOR":    if(e.replica!=null) st.replicas[e.replica].byzantine=true; break;
+      case "SAFE":      st.safety={state:"safe",detail:e.detail}; break;
+      case "converge":  st.safety={state:"safe",detail:e.detail}; break;
+      case "SAFETY-VIOLATION": st.safety={state:"violation",detail:e.detail}; break;
+      case "DIVERGE":   st.safety={state:"violation",detail:e.detail}; break;
+    }
+    if(e.replica!=null) st.replicas[e.replica].lastAction = e.kind+" · "+(e.detail||"");
+    st.lastEvent = e;
+  }
+
+  // leader is round-robin on current view
+  st.leader = st.view % BANKS.length;
+  // pulse: whoever acted on the just-fired event
+  st.activeReplica = idx>0 ? EVENTS[idx-1].replica : null;
+  return st;
+}
+
+/* role for a replica card given full state */
+function roleOf(r, st){
+  if(r.crashed) return "CRASHED";
+  if(r.byzantine) return "BYZANTINE";
+  if(r.i === st.leader) return "LEADER";
+  return "replica";
+}
+
+/* =========================================================================
+   3. RENDERING  (in-place updates so CSS transitions run)
+   ========================================================================= */
+let replicaEls = [];    // persistent node card elements
+let ledgerEls  = {};    // per-bank {row,fill,val}
+let cur = 0;            // current fired-event index
+let curT = 0;           // current playback time
+
+function buildReplicaCards(){
+  const grid = document.getElementById("replica-grid");
+  grid.innerHTML="";
+  replicaEls = BANKS.map((b,i)=>{
+    const el = document.createElement("div");
+    el.className="node"; el.dataset.i=i;
+    el.innerHTML = `
+      <div class="node-head">
+        <div class="node-avatar" style="background:${AVATAR_COLORS[i]}">${b}</div>
+        <div class="node-name">Bank ${b} <small>· r${i}</small></div>
+        <div class="badge">replica</div>
+      </div>
+      <div class="node-stats">
+        <span class="k">view</span><span class="v" data-f="view">0</span>
+        <span class="k">committed</span><span class="v" data-f="committed">0</span>
+        <span class="k">lockedQC</span><span class="v" data-f="locked">—</span>
+        <span class="k">prepareQC</span><span class="v" data-f="prepare">—</span>
+      </div>
+      <div class="node-last" data-f="last">idle</div>`;
+    // tooltip
+    el.addEventListener("mouseenter",()=>showTip(i));
+    el.addEventListener("mousemove",e=>moveTip(e));
+    el.addEventListener("mouseleave",hideTip);
+    grid.appendChild(el);
+    return el;
+  });
+}
+
+function buildLedgerBars(){
+  const wrap = document.getElementById("ledger-bars");
+  wrap.innerHTML="";
+  ledgerEls={};
+  BANKS.forEach((b,i)=>{
+    const row=document.createElement("div"); row.className="lrow";
+    row.innerHTML=`<span class="lname" style="color:${AVATAR_COLORS[i]}">${b}</span>
+      <div class="lbar-track"><div class="lbar-fill" style="background:${AVATAR_COLORS[i]}"></div></div>
+      <span class="lval">—</span>`;
+    wrap.appendChild(row);
+    ledgerEls[b]={row,fill:row.querySelector(".lbar-fill"),val:row.querySelector(".lval")};
+  });
+}
+
+function render(st){
+  // ---- top bar ----
+  document.getElementById("view-num").textContent = st.view;
+  document.getElementById("leader-name").textContent =
+    st.leader!=null ? `${BANKS[st.leader]} · r${st.leader}` : "—";
+  // phase pills
+  const order=["prepare","pre-commit","commit","decide"];
+  document.querySelectorAll(".phase-pill").forEach(p=>{
+    p.classList.toggle("active", p.dataset.p===st.phase);
+  });
+  // safety flag
+  const sf=document.getElementById("safety-flag");
+  sf.className="safety-flag "+(st.safety.state==="violation"?"violation":"safe");
+  sf.textContent = st.safety.state==="violation" ? "⚠ SAFETY VIOLATION" : "✓ SAFE";
+  sf.title = st.safety.detail;
+
+  // ---- replica cards ----
+  st.replicas.forEach((r,i)=>{
+    const el=replicaEls[i], role=roleOf(r,st);
+    el.classList.toggle("leader", role==="LEADER");
+    el.classList.toggle("byzantine", role==="BYZANTINE");
+    el.classList.toggle("crashed", role==="CRASHED");
+    const badge=el.querySelector(".badge");
+    badge.className="badge "+role;
+    badge.textContent = role==="CRASHED"?"💀 crashed":role==="BYZANTINE"?"⚠ byzantine":role;
+    el.querySelector('[data-f="view"]').textContent=r.view;
+    el.querySelector('[data-f="committed"]').textContent=r.committed;
+    el.querySelector('[data-f="locked"]').textContent=r.lockedQC!=null?("v"+r.lockedQC):"—";
+    el.querySelector('[data-f="prepare"]').textContent=r.prepareQC!=null?("v"+r.prepareQC):"—";
+    el.querySelector('[data-f="last"]').textContent=r.lastVote?("last vote: "+r.lastVote):(r.lastAction||"idle");
+    // pulse
+    el.classList.remove("active");
+    if(i===st.activeReplica){ void el.offsetWidth; el.classList.add("active"); }
+  });
+
+  // ---- ledger ----
+  const bals=st.balances, total=BANKS.reduce((s,b)=>s+(bals[b]||0),0);
+  const maxB=Math.max(1,...BANKS.map(b=>bals[b]||0));
+  BANKS.forEach(b=>{
+    const set=ledgerEls[b], v=bals[b]||0;
+    const prev=set.val.dataset.v;
+    set.fill.style.width=(v/maxB*100)+"%";
+    set.val.textContent=v;
+    if(prev!==undefined && prev!==String(v)){ set.row.classList.remove("flash"); void set.row.offsetWidth; set.row.classList.add("flash"); }
+    set.val.dataset.v=v;
+  });
+  const cons=document.getElementById("conserve");
+  const START_TOTAL=300;
+  const ok = total===START_TOTAL;
+  cons.className="conserve"+(ok?"":" bad");
+  cons.innerHTML = `<span>${ok?"✓":"✗"}</span><span>conserved: Σ balances = <b>${total}</b> ${ok?"= N (invariant holds)":"≠ N (LEAK!)"}</span>`;
+
+  // ---- transfer history ----
+  const hist=document.getElementById("hist");
+  hist.innerHTML="";
+  if(!st.history.length){ hist.innerHTML=`<div style="color:var(--ink-dim);font-family:var(--mono);font-size:11px">no commits yet</div>`; }
+  st.history.slice().reverse().forEach(h=>{
+    const rej = h.outcome.startsWith("REJECT");
+    const row=document.createElement("div"); row.className="hrow";
+    row.innerHTML=`<span class="hcmd">${esc(h.cmd)}</span><span class="htag ${rej?"REJECT":"OK"}">${esc(h.outcome)}</span>`;
+    hist.appendChild(row);
+  });
+
+  // ---- block tree ----
+  renderTree(st);
+  // ---- event log current highlight ----
+  renderLog();
+}
+
+/* ---- block tree (SVG, rebuilt each render) ------------------------------ */
+function renderTree(st){
+  const svg=document.getElementById("tree-svg");
+  const blocks=st.blockOrder.map(h=>st.blocks.get(h));
+  if(!blocks.length){ svg.innerHTML=`<text x="14" y="26" fill="#54637190" font-family="var(--mono)" font-size="11">no blocks proposed yet</text>`; svg.setAttribute("width",300);svg.setAttribute("height",60);return; }
+
+  // column per view (sorted); row per index within that view
+  const views=[...new Set(blocks.map(b=>b.view))].sort((a,b)=>a-b);
+  const colX = v => 20 + views.indexOf(v)*150;
+  const perView={}; const pos={};
+  const BW=118,BH=52,VGAP=20;
+  blocks.forEach(b=>{
+    perView[b.view]=(perView[b.view]||0);
+    pos[b.hash]={x:colX(b.view), y:20+perView[b.view]*(BH+VGAP)};
+    perView[b.view]++;
+  });
+  const width = 20 + views.length*150 + 20;
+  const maxRows=Math.max(...Object.values(perView));
+  const height = 20 + maxRows*(BH+VGAP) + 30;
+  svg.setAttribute("width",Math.max(width,300));
+  svg.setAttribute("height",height);
+  svg.setAttribute("viewBox",`0 0 ${Math.max(width,300)} ${height}`);
+
+  let g="";
+  // edges parent->child
+  blocks.forEach(b=>{
+    if(b.parent && pos[b.parent]){
+      const c=pos[b.hash], p=pos[b.parent];
+      const chain = b.status==="committed" && st.blocks.get(b.parent) && st.blocks.get(b.parent).status==="committed";
+      const x1=p.x+BW, y1=p.y+BH/2, x2=c.x, y2=c.y+BH/2, mx=(x1+x2)/2;
+      g+=`<path class="tree-edge${chain?" chain":""}" d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"/>`;
+    }
+  });
+  // blocks
+  const FILL={proposed:"#16202b",qc:"#1a2b3a",locked:"#3a2c10",committed:"#12331f"};
+  const STROKE={proposed:"#2a3947",qc:getVar("--p-prepare"),locked:getVar("--p-commit"),committed:getVar("--p-decide")};
+  blocks.forEach(b=>{
+    const p=pos[b.hash];
+    const cmd=(b.cmd||"").replace(/^TRANSFER\(/,"").replace(/\)$/,"");
+    const label = b.status==="locked"?"🔒 LOCKED":b.status==="committed"?"✓ COMMITTED":b.status==="qc"?"QC":"proposed";
+    g+=`<g class="blk" data-node="${b.hash}">
+      <rect x="${p.x}" y="${p.y}" width="${BW}" height="${BH}" rx="7" fill="${FILL[b.status]}" stroke="${STROKE[b.status]}" stroke-width="${b.status==="proposed"?1:1.8}"/>
+      <text class="b-hash" x="${p.x+9}" y="${p.y+16}">${b.hash}</text>
+      <text class="b-meta" x="${p.x+BW-9}" y="${p.y+16}" text-anchor="end">v${b.view} · ${label}</text>
+      <text class="b-cmd" x="${p.x+9}" y="${p.y+38}">${esc(cmd||"·")}</text>
+    </g>`;
+  });
+  svg.innerHTML=g;
+  // click a block → jump to its first event
+  svg.querySelectorAll(".blk").forEach(el=>{
+    el.style.cursor="pointer";
+    el.addEventListener("click",()=>{
+      const node=el.dataset.node;
+      const i=EVENTS.findIndex(e=>e.node===node);
+      if(i>=0) seekToIndex(i+1);
+    });
+  });
+}
+
+/* =========================================================================
+   4. MESSAGE BUS  (SVG + rAF-driven moving dots)
+   ========================================================================= */
+let flights=[];  // {from,to,color,t0,dur,dropped}
+function buildBus(){
+  const svg=document.getElementById("bus-svg");
+  let g="";
+  // edges between every pair (faint)
+  for(let a=0;a<4;a++)for(let b=a+1;b<4;b++){
+    g+=`<line class="bus-edge" x1="${NODE_POS[a].x}" y1="${NODE_POS[a].y}" x2="${NODE_POS[b].x}" y2="${NODE_POS[b].y}"/>`;
+  }
+  // nodes
+  BANKS.forEach((b,i)=>{
+    g+=`<g data-bus="${i}">
+      <circle class="bus-node-ring" cx="${NODE_POS[i].x}" cy="${NODE_POS[i].y}" r="${NODE_R}"/>
+      <text class="bus-node-label" x="${NODE_POS[i].x}" y="${NODE_POS[i].y}">${b}</text>
+    </g>`;
+  });
+  g+=`<g id="flight-layer"></g>`;
+  // legend
+  const leg=[["prepare","--p-prepare"],["pre-commit","--p-precommit"],["commit","--p-commit"],["decide","--p-decide"]];
+  leg.forEach(([n,v],i)=>{
+    g+=`<g class="bus-legend"><circle cx="14" cy="${16+i*15}" r="4" fill="${getVar(v)}"/><text x="24" y="${19+i*15}">${n}</text></g>`;
+  });
+  svg.innerHTML=g;
+}
+/* refresh bus node ring roles from state (leader/crash/byz) */
+function refreshBusNodes(st){
+  const svg=document.getElementById("bus-svg");
+  st.replicas.forEach((r,i)=>{
+    const ring=svg.querySelector(`g[data-bus="${i}"] .bus-node-ring`);
+    if(!ring) return;
+    const role=roleOf(r,st);
+    ring.className.baseVal="bus-node-ring"+(role==="LEADER"?" leader":role==="CRASHED"?" crashed":role==="BYZANTINE"?" byz":"");
+  });
+}
+/* spawn message dots for a fired event */
+function spawnMessages(e){
+  const phase=e.phase||"generic";
+  const color=PHASE_COLOR[phase]||PHASE_COLOR.generic;
+  const now=performance.now();
+  const dur=520;
+  if(e.kind==="PROPOSE"||e.kind==="EQUIVOCATE"||e.kind==="CENSOR"||e.kind==="QC"){
+    // broadcast leader -> all others
+    const src = e.from!=null?e.from:(e.replica!=null?e.replica:0);
+    for(let j=0;j<4;j++){ if(j!==src) flights.push({from:src,to:j,color,t0:now,dur,dropped:e.kind==="CENSOR"}); }
+  } else if(e.kind==="DROP"){
+    if(e.from!=null&&e.to!=null) flights.push({from:e.from,to:e.to,color:getVar("--bad"),t0:now,dur,dropped:true});
+  } else if(e.from!=null && e.to!=null){
+    flights.push({from:e.from,to:e.to,color:(e.kind==="vote"?color:color),t0:now,dur,dropped:false});
+  }
+  const hint=document.getElementById("bus-hint");
+  hint.textContent = flights.length? (e.kind==="PROPOSE"?"broadcast · "+phase : e.kind==="vote"?"vote · "+phase : e.kind.toLowerCase()) : "idle";
+}
+function busLoop(){
+  const layer=document.getElementById("flight-layer");
+  if(layer){
+    const now=performance.now();
+    flights=flights.filter(f=>now-f.t0 < f.dur+120);
+    let g="";
+    flights.forEach(f=>{
+      const raw=(now-f.t0)/f.dur; const p=Math.min(1,raw);
+      const a=NODE_POS[f.from], b=NODE_POS[f.to];
+      // start/end just outside node rings
+      const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy)||1,ux=dx/len,uy=dy/len;
+      const sx=a.x+ux*NODE_R, sy=a.y+uy*NODE_R, ex=b.x-ux*NODE_R, ey=b.y-uy*NODE_R;
+      let cx=sx+(ex-sx)*p, cy=sy+(ey-sy)*p, op=1;
+      if(f.dropped){
+        if(p>=0.5){ op=Math.max(0,1-(p-0.5)*2.2); } // fade out mid-flight
+        const drawP=Math.min(p,0.55);
+        cx=sx+(ex-sx)*drawP; cy=sy+(ey-sy)*drawP;
+        g+=`<circle cx="${cx}" cy="${cy}" r="5" fill="${f.color}" opacity="${op}"/>`;
+        g+=`<circle cx="${cx}" cy="${cy}" r="9" fill="none" stroke="${f.color}" stroke-width="1" stroke-dasharray="2 3" opacity="${op*0.8}"/>`;
+        if(p>0.5&&p<0.9) g+=`<text x="${cx+8}" y="${cy-6}" fill="${f.color}" font-family="var(--mono)" font-size="8" opacity="${op}">DROP</text>`;
+      } else {
+        if(p>=1) op=Math.max(0,1-(raw-1)*3);
+        g+=`<circle cx="${cx}" cy="${cy}" r="5.5" fill="${f.color}" opacity="${op}"><animate attributeName="r" values="5.5;6.5;5.5" dur="0.5s" repeatCount="indefinite"/></circle>`;
+      }
+    });
+    layer.innerHTML=g;
+    if(!flights.length) document.getElementById("bus-hint").textContent="idle";
+  }
+  requestAnimationFrame(busLoop);
+}
+
+/* =========================================================================
+   5. EVENT LOG (+ filters, click-to-seek)
+   ========================================================================= */
+function buildKindFilter(){
+  const kinds=[...new Set(EVENTS.map(e=>e.kind))];
+  const sel=document.getElementById("filter-kind");
+  const val=sel.value;
+  sel.innerHTML=`<option value="">all kinds</option>`+kinds.map(k=>`<option value="${k}">${k}</option>`).join("");
+  if(kinds.includes(val)) sel.value=val;
+}
+function renderLog(){
+  const list=document.getElementById("log-list");
+  const fr=document.getElementById("filter-replica").value;
+  const fk=document.getElementById("filter-kind").value;
+  let html="";
+  EVENTS.forEach((e,i)=>{
+    if(fr!==""){ if(fr==="null"){ if(e.replica!=null) return; } else if(String(e.replica)!==fr) return; }
+    if(fk!=="" && e.kind!==fk) return;
+    const future = i>=cur;
+    const c=KIND_COLOR[e.kind]||"#8b97a6";
+    html+=`<div class="logline ${i===cur-1?"cur":""} ${future?"future":""}" data-i="${i}">
+      <span class="lt">${e.t.toFixed(2)}</span>
+      <span class="lk" style="color:${c}">${e.kind}</span>
+      <span class="ld">${esc(e.detail||"")}</span>
+    </div>`;
+  });
+  list.innerHTML=html;
+  list.querySelectorAll(".logline").forEach(el=>{
+    el.addEventListener("click",()=>seekToIndex(parseInt(el.dataset.i)+1));
+  });
+  // keep current line in view (without scrollIntoView)
+  const curEl=list.querySelector(".logline.cur");
+  if(curEl){
+    const top=curEl.offsetTop, h=curEl.offsetHeight, vt=list.scrollTop, vh=list.clientHeight;
+    if(top<vt||top+h>vt+vh) list.scrollTop=top-vh/2+h/2;
+  }
+}
+
+/* =========================================================================
+   6. TOOLTIP
+   ========================================================================= */
+const tipEl=document.getElementById("tip");
+let tipReplica=null;
+function showTip(i){ tipReplica=i; updateTip(); tipEl.classList.add("on"); }
+function hideTip(){ tipReplica=null; tipEl.classList.remove("on"); }
+function moveTip(e){
+  let x=e.clientX+14, y=e.clientY+14;
+  if(x+290>innerWidth) x=e.clientX-290;
+  if(y+160>innerHeight) y=e.clientY-160;
+  tipEl.style.left=x+"px"; tipEl.style.top=y+"px";
+}
+function updateTip(){
+  if(tipReplica==null) return;
+  const st=computeState(cur); const r=st.replicas[tipReplica]; const role=roleOf(r,st);
+  tipEl.innerHTML=`<div class="tt-title">Bank ${r.name} · replica ${r.i} — ${role}</div>
+    <div class="tt-row"><span class="k">current view</span><span>${r.view}</span></div>
+    <div class="tt-row"><span class="k">lockedQC.view</span><span>${r.lockedQC!=null?"v"+r.lockedQC:"none"}</span></div>
+    <div class="tt-row"><span class="k">prepareQC.view</span><span>${r.prepareQC!=null?"v"+r.prepareQC:"none"}</span></div>
+    <div class="tt-row"><span class="k">committed</span><span>${r.committed}</span></div>
+    <div class="tt-row"><span class="k">last vote</span><span>${r.lastVote||"—"}</span></div>
+    <div class="tt-row" style="margin-top:5px"><span class="k">balance</span><span>${st.balances[r.name]}</span></div>`;
+}
+
+/* =========================================================================
+   7. PLAYBACK ENGINE
+      curT drives everything; cur = #events with t <= curT.
+   ========================================================================= */
+let playing=false, speed=1, lastFrame=0;
+function maxT(){ return EVENTS.length?EVENTS[EVENTS.length-1].t:0; }
+
+function updateAndRender(){
+  const st=computeState(cur);
+  render(st);
+  refreshBusNodes(st);
+  updateTip();
+  // controls readout
+  document.getElementById("clock-t").textContent=curT.toFixed(2);
+  document.getElementById("clock-i").textContent=cur;
+  document.getElementById("clock-n").textContent=EVENTS.length;
+  const scrub=document.getElementById("scrub");
+  scrub.value = Math.round((maxT()? curT/maxT():0)*1000);
+}
+
+/* advance time forward, firing (spawning messages) for crossed events */
+function tick(now){
+  if(playing){
+    const dt=(now-lastFrame)/1000*speed;
+    lastFrame=now;
+    let newT=curT+dt;
+    const end=maxT()+0.2;
+    if(newT>=end){ newT=end; }
+    // fire events crossed
+    while(cur<EVENTS.length && EVENTS[cur].t<=newT){
+      spawnMessages(EVENTS[cur]);
+      cur++;
+    }
+    curT=newT;
+    updateAndRender();
+    if(curT>=end){ playing=false; syncPlayBtn(); }
+  }
+  requestAnimationFrame(tick);
+}
+
+/* jump to a fired-event index (used by log/block clicks + step) — no spawn */
+function seekToIndex(idx){
+  idx=Math.max(0,Math.min(EVENTS.length,idx));
+  cur=idx;
+  curT = idx>0 ? EVENTS[idx-1].t : 0;
+  flights=[];
+  // pause on manual seek
+  playing=false; syncPlayBtn();
+  updateAndRender();
+}
+/* scrub by time */
+function seekToTime(t){
+  curT=t;
+  cur=EVENTS.filter(e=>e.t<=t).length;
+  flights=[];
+  updateAndRender();
+}
+
+function syncPlayBtn(){ document.getElementById("btn-play").textContent = playing?"⏸":"▶"; }
+
+/* =========================================================================
+   8. SCENARIO LOADING + WIRING
+   ========================================================================= */
+function loadScenario(key){
+  EVENTS = SCENARIOS[key].events;
+  cur=0; curT=0; flights=[]; playing=false; syncPlayBtn();
+  buildKindFilter();
+  updateAndRender();
+}
+
+function init(){
+  // scenario dropdown
+  const sel=document.getElementById("scenario");
+  sel.innerHTML=Object.entries(SCENARIOS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join("");
+  sel.value="double-spend";
+  sel.addEventListener("change",()=>loadScenario(sel.value));
+
+  buildReplicaCards();
+  buildLedgerBars();
+  buildBus();
+  buildKindFilter();
+
+  // controls
+  document.getElementById("btn-play").addEventListener("click",()=>{
+    if(curT>=maxT()+0.19){ seekToTime(0); } // restart if at end
+    playing=!playing; lastFrame=performance.now(); syncPlayBtn();
+  });
+  document.getElementById("btn-fwd").addEventListener("click",()=>{
+    if(cur<EVENTS.length){ spawnMessages(EVENTS[cur]); cur++; curT=EVENTS[cur-1].t; playing=false; syncPlayBtn(); updateAndRender(); }
+  });
+  document.getElementById("btn-back").addEventListener("click",()=>{ seekToIndex(cur-1); });
+  document.getElementById("scrub").addEventListener("input",e=>{
+    playing=false; syncPlayBtn();
+    seekToTime(e.target.value/1000*maxT());
+  });
+  document.getElementById("speed").addEventListener("change",e=>{ speed=parseFloat(e.target.value); });
+  document.getElementById("filter-replica").addEventListener("change",renderLog);
+  document.getElementById("filter-kind").addEventListener("change",renderLog);
+
+  // keyboard
+  document.addEventListener("keydown",e=>{
+    if(e.target.tagName==="SELECT") return;
+    if(e.code==="Space"){ e.preventDefault(); document.getElementById("btn-play").click(); }
+    else if(e.code==="ArrowRight") document.getElementById("btn-fwd").click();
+    else if(e.code==="ArrowLeft") document.getElementById("btn-back").click();
+  });
+
+  updateAndRender();
+  requestAnimationFrame(tick);
+  requestAnimationFrame(busLoop);
+}
+
+/* small helper */
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+init();
+</script>
+
+
+</body></html>

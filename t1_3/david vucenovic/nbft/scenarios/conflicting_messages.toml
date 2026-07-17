@@ -1,0 +1,16 @@
+name = "conflicting_messages"
+description = "Scenario 04 - equivocation: byzantine members send conflicting digests; both models weaken their votes"
+
+n = 17
+m = 4
+seed = 31
+rounds = 1
+
+byz_count = 4
+byz_behavior = "equivocate"
+byz_target = "member"
+
+base_delay_ms = 5.0
+jitter_ms = 10.0
+phase_timeout_ms = 400.0
+client_timeout_ms = 1500.0

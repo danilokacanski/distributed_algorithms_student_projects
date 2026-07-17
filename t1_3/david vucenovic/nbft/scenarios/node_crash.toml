@@ -1,0 +1,16 @@
+name = "node_crash"
+description = "Scenario 01 - node crash: two group members fail-stop; their groups still aggregate 2E+1 signatures"
+
+n = 17
+m = 4
+seed = 11
+rounds = 1
+
+byz_count = 2
+byz_behavior = "crash"
+byz_target = "member"
+
+base_delay_ms = 5.0
+jitter_ms = 10.0
+phase_timeout_ms = 400.0
+client_timeout_ms = 1500.0

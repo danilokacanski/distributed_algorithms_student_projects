@@ -1,0 +1,16 @@
+name = "low_signatures"
+description = "Scenario 05 - a representative forwards fewer than 2E+1 signatures: its group blocks it (Model 1) and votes on its own"
+
+n = 17
+m = 4
+seed = 41
+rounds = 1
+
+byz_count = 1
+byz_behavior = "low_sig"
+byz_target = "representative"
+
+base_delay_ms = 5.0
+jitter_ms = 10.0
+phase_timeout_ms = 400.0
+client_timeout_ms = 1500.0

@@ -1,0 +1,797 @@
+services:
+  monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile.monitor
+    ports:
+    - 8080:8080
+    - 8081:8081
+    networks:
+    - tm-net
+  node0:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=0
+    - TOTAL_NODES=56
+    - PEERS=1:node1:8001,2:node2:8002,3:node3:8003,4:node4:8004,5:node5:8005,6:node6:8006,7:node7:8007
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=222
+    networks:
+    - tm-net
+  node1:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=1
+    - TOTAL_NODES=56
+    - PEERS=2:node2:8002,3:node3:8003,4:node4:8004,5:node5:8005,6:node6:8006,7:node7:8007,8:node8:8008
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=104
+    networks:
+    - tm-net
+  node2:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=2
+    - TOTAL_NODES=56
+    - PEERS=3:node3:8003,4:node4:8004,5:node5:8005,6:node6:8006,7:node7:8007,8:node8:8008,9:node9:8009
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=154
+    networks:
+    - tm-net
+  node3:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=3
+    - TOTAL_NODES=56
+    - PEERS=4:node4:8004,5:node5:8005,6:node6:8006,7:node7:8007,8:node8:8008,9:node9:8009,10:node10:8010
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=110
+    networks:
+    - tm-net
+  node4:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=4
+    - TOTAL_NODES=56
+    - PEERS=5:node5:8005,6:node6:8006,7:node7:8007,8:node8:8008,9:node9:8009,10:node10:8010,11:node11:8011
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=131
+    networks:
+    - tm-net
+  node5:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=5
+    - TOTAL_NODES=56
+    - PEERS=6:node6:8006,7:node7:8007,8:node8:8008,9:node9:8009,10:node10:8010,11:node11:8011,12:node12:8012
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=123
+    networks:
+    - tm-net
+  node6:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=6
+    - TOTAL_NODES=56
+    - PEERS=7:node7:8007,8:node8:8008,9:node9:8009,10:node10:8010,11:node11:8011,12:node12:8012,13:node13:8013
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=171
+    networks:
+    - tm-net
+  node7:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=7
+    - TOTAL_NODES=56
+    - PEERS=8:node8:8008,9:node9:8009,10:node10:8010,11:node11:8011,12:node12:8012,13:node13:8013,14:node14:8014
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=245
+    networks:
+    - tm-net
+  node8:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=8
+    - TOTAL_NODES=56
+    - PEERS=9:node9:8009,10:node10:8010,11:node11:8011,12:node12:8012,13:node13:8013,14:node14:8014,15:node15:8015
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=207
+    networks:
+    - tm-net
+  node9:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=9
+    - TOTAL_NODES=56
+    - PEERS=10:node10:8010,11:node11:8011,12:node12:8012,13:node13:8013,14:node14:8014,15:node15:8015,16:node16:8016
+    - RUST_LOG=info
+    - BEHAVIOR=double-vote
+    - LATENCY_MS=173
+    networks:
+    - tm-net
+  node10:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=10
+    - TOTAL_NODES=56
+    - PEERS=11:node11:8011,12:node12:8012,13:node13:8013,14:node14:8014,15:node15:8015,16:node16:8016,17:node17:8017
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=152
+    networks:
+    - tm-net
+  node11:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=11
+    - TOTAL_NODES=56
+    - PEERS=12:node12:8012,13:node13:8013,14:node14:8014,15:node15:8015,16:node16:8016,17:node17:8017,18:node18:8018
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=276
+    networks:
+    - tm-net
+  node12:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=12
+    - TOTAL_NODES=56
+    - PEERS=13:node13:8013,14:node14:8014,15:node15:8015,16:node16:8016,17:node17:8017,18:node18:8018,19:node19:8019
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=189
+    networks:
+    - tm-net
+  node13:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=13
+    - TOTAL_NODES=56
+    - PEERS=14:node14:8014,15:node15:8015,16:node16:8016,17:node17:8017,18:node18:8018,19:node19:8019,20:node20:8020
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=115
+    networks:
+    - tm-net
+  node14:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=14
+    - TOTAL_NODES=56
+    - PEERS=15:node15:8015,16:node16:8016,17:node17:8017,18:node18:8018,19:node19:8019,20:node20:8020,21:node21:8021
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=165
+    networks:
+    - tm-net
+  node15:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=15
+    - TOTAL_NODES=56
+    - PEERS=16:node16:8016,17:node17:8017,18:node18:8018,19:node19:8019,20:node20:8020,21:node21:8021,22:node22:8022
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=170
+    networks:
+    - tm-net
+  node16:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=16
+    - TOTAL_NODES=56
+    - PEERS=17:node17:8017,18:node18:8018,19:node19:8019,20:node20:8020,21:node21:8021,22:node22:8022,23:node23:8023
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=151
+    networks:
+    - tm-net
+  node17:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=17
+    - TOTAL_NODES=56
+    - PEERS=18:node18:8018,19:node19:8019,20:node20:8020,21:node21:8021,22:node22:8022,23:node23:8023,24:node24:8024
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=242
+    networks:
+    - tm-net
+  node18:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=18
+    - TOTAL_NODES=56
+    - PEERS=19:node19:8019,20:node20:8020,21:node21:8021,22:node22:8022,23:node23:8023,24:node24:8024,25:node25:8025
+    - RUST_LOG=info
+    - BEHAVIOR=send-invalid
+    - LATENCY_MS=109
+    networks:
+    - tm-net
+  node19:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=19
+    - TOTAL_NODES=56
+    - PEERS=20:node20:8020,21:node21:8021,22:node22:8022,23:node23:8023,24:node24:8024,25:node25:8025,26:node26:8026
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=242
+    networks:
+    - tm-net
+  node20:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=20
+    - TOTAL_NODES=56
+    - PEERS=21:node21:8021,22:node22:8022,23:node23:8023,24:node24:8024,25:node25:8025,26:node26:8026,27:node27:8027
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=110
+    networks:
+    - tm-net
+  node21:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=21
+    - TOTAL_NODES=56
+    - PEERS=22:node22:8022,23:node23:8023,24:node24:8024,25:node25:8025,26:node26:8026,27:node27:8027,28:node28:8028
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=170
+    networks:
+    - tm-net
+  node22:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=22
+    - TOTAL_NODES=56
+    - PEERS=23:node23:8023,24:node24:8024,25:node25:8025,26:node26:8026,27:node27:8027,28:node28:8028,29:node29:8029
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=271
+    networks:
+    - tm-net
+  node23:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=23
+    - TOTAL_NODES=56
+    - PEERS=24:node24:8024,25:node25:8025,26:node26:8026,27:node27:8027,28:node28:8028,29:node29:8029,30:node30:8030
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=258
+    networks:
+    - tm-net
+  node24:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=24
+    - TOTAL_NODES=56
+    - PEERS=25:node25:8025,26:node26:8026,27:node27:8027,28:node28:8028,29:node29:8029,30:node30:8030,31:node31:8031
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=222
+    networks:
+    - tm-net
+  node25:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=25
+    - TOTAL_NODES=56
+    - PEERS=26:node26:8026,27:node27:8027,28:node28:8028,29:node29:8029,30:node30:8030,31:node31:8031,32:node32:8032
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=153
+    networks:
+    - tm-net
+  node26:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=26
+    - TOTAL_NODES=56
+    - PEERS=27:node27:8027,28:node28:8028,29:node29:8029,30:node30:8030,31:node31:8031,32:node32:8032,33:node33:8033
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=171
+    networks:
+    - tm-net
+  node27:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=27
+    - TOTAL_NODES=56
+    - PEERS=28:node28:8028,29:node29:8029,30:node30:8030,31:node31:8031,32:node32:8032,33:node33:8033,34:node34:8034
+    - RUST_LOG=info
+    - BEHAVIOR=silent
+    - LATENCY_MS=150
+    networks:
+    - tm-net
+  node28:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=28
+    - TOTAL_NODES=56
+    - PEERS=29:node29:8029,30:node30:8030,31:node31:8031,32:node32:8032,33:node33:8033,34:node34:8034,35:node35:8035
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=215
+    networks:
+    - tm-net
+  node29:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=29
+    - TOTAL_NODES=56
+    - PEERS=30:node30:8030,31:node31:8031,32:node32:8032,33:node33:8033,34:node34:8034,35:node35:8035,36:node36:8036
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=203
+    networks:
+    - tm-net
+  node30:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=30
+    - TOTAL_NODES=56
+    - PEERS=31:node31:8031,32:node32:8032,33:node33:8033,34:node34:8034,35:node35:8035,36:node36:8036,37:node37:8037
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=247
+    networks:
+    - tm-net
+  node31:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=31
+    - TOTAL_NODES=56
+    - PEERS=32:node32:8032,33:node33:8033,34:node34:8034,35:node35:8035,36:node36:8036,37:node37:8037,38:node38:8038
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=140
+    networks:
+    - tm-net
+  node32:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=32
+    - TOTAL_NODES=56
+    - PEERS=33:node33:8033,34:node34:8034,35:node35:8035,36:node36:8036,37:node37:8037,38:node38:8038,39:node39:8039
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=265
+    networks:
+    - tm-net
+  node33:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=33
+    - TOTAL_NODES=56
+    - PEERS=34:node34:8034,35:node35:8035,36:node36:8036,37:node37:8037,38:node38:8038,39:node39:8039,40:node40:8040
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=197
+    networks:
+    - tm-net
+  node34:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=34
+    - TOTAL_NODES=56
+    - PEERS=35:node35:8035,36:node36:8036,37:node37:8037,38:node38:8038,39:node39:8039,40:node40:8040,41:node41:8041
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=137
+    networks:
+    - tm-net
+  node35:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=35
+    - TOTAL_NODES=56
+    - PEERS=36:node36:8036,37:node37:8037,38:node38:8038,39:node39:8039,40:node40:8040,41:node41:8041,42:node42:8042
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=227
+    networks:
+    - tm-net
+  node36:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=36
+    - TOTAL_NODES=56
+    - PEERS=37:node37:8037,38:node38:8038,39:node39:8039,40:node40:8040,41:node41:8041,42:node42:8042,43:node43:8043
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=272
+    networks:
+    - tm-net
+  node37:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=37
+    - TOTAL_NODES=56
+    - PEERS=38:node38:8038,39:node39:8039,40:node40:8040,41:node41:8041,42:node42:8042,43:node43:8043,44:node44:8044
+    - RUST_LOG=info
+    - BEHAVIOR=double-vote
+    - LATENCY_MS=251
+    networks:
+    - tm-net
+  node38:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=38
+    - TOTAL_NODES=56
+    - PEERS=39:node39:8039,40:node40:8040,41:node41:8041,42:node42:8042,43:node43:8043,44:node44:8044,45:node45:8045
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=239
+    networks:
+    - tm-net
+  node39:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=39
+    - TOTAL_NODES=56
+    - PEERS=40:node40:8040,41:node41:8041,42:node42:8042,43:node43:8043,44:node44:8044,45:node45:8045,46:node46:8046
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=132
+    networks:
+    - tm-net
+  node40:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=40
+    - TOTAL_NODES=56
+    - PEERS=41:node41:8041,42:node42:8042,43:node43:8043,44:node44:8044,45:node45:8045,46:node46:8046,47:node47:8047
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=150
+    networks:
+    - tm-net
+  node41:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=41
+    - TOTAL_NODES=56
+    - PEERS=42:node42:8042,43:node43:8043,44:node44:8044,45:node45:8045,46:node46:8046,47:node47:8047,48:node48:8048
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=151
+    networks:
+    - tm-net
+  node42:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=42
+    - TOTAL_NODES=56
+    - PEERS=43:node43:8043,44:node44:8044,45:node45:8045,46:node46:8046,47:node47:8047,48:node48:8048,49:node49:8049
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=192
+    networks:
+    - tm-net
+  node43:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=43
+    - TOTAL_NODES=56
+    - PEERS=44:node44:8044,45:node45:8045,46:node46:8046,47:node47:8047,48:node48:8048,49:node49:8049,50:node50:8050
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=247
+    networks:
+    - tm-net
+  node44:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=44
+    - TOTAL_NODES=56
+    - PEERS=45:node45:8045,46:node46:8046,47:node47:8047,48:node48:8048,49:node49:8049,50:node50:8050,51:node51:8051
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=218
+    networks:
+    - tm-net
+  node45:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=45
+    - TOTAL_NODES=56
+    - PEERS=46:node46:8046,47:node47:8047,48:node48:8048,49:node49:8049,50:node50:8050,51:node51:8051,52:node52:8052
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=115
+    networks:
+    - tm-net
+  node46:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=46
+    - TOTAL_NODES=56
+    - PEERS=47:node47:8047,48:node48:8048,49:node49:8049,50:node50:8050,51:node51:8051,52:node52:8052,53:node53:8053
+    - RUST_LOG=info
+    - BEHAVIOR=send-invalid
+    - LATENCY_MS=253
+    networks:
+    - tm-net
+  node47:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=47
+    - TOTAL_NODES=56
+    - PEERS=48:node48:8048,49:node49:8049,50:node50:8050,51:node51:8051,52:node52:8052,53:node53:8053,54:node54:8054
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=246
+    networks:
+    - tm-net
+  node48:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=48
+    - TOTAL_NODES=56
+    - PEERS=49:node49:8049,50:node50:8050,51:node51:8051,52:node52:8052,53:node53:8053,54:node54:8054,55:node55:8055
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=147
+    networks:
+    - tm-net
+  node49:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=49
+    - TOTAL_NODES=56
+    - PEERS=50:node50:8050,51:node51:8051,52:node52:8052,53:node53:8053,54:node54:8054,55:node55:8055,0:node0:8000
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=154
+    networks:
+    - tm-net
+  node50:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=50
+    - TOTAL_NODES=56
+    - PEERS=51:node51:8051,52:node52:8052,53:node53:8053,54:node54:8054,55:node55:8055,0:node0:8000,1:node1:8001
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=166
+    networks:
+    - tm-net
+  node51:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=51
+    - TOTAL_NODES=56
+    - PEERS=52:node52:8052,53:node53:8053,54:node54:8054,55:node55:8055,0:node0:8000,1:node1:8001,2:node2:8002
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=124
+    networks:
+    - tm-net
+  node52:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=52
+    - TOTAL_NODES=56
+    - PEERS=53:node53:8053,54:node54:8054,55:node55:8055,0:node0:8000,1:node1:8001,2:node2:8002,3:node3:8003
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=229
+    networks:
+    - tm-net
+  node53:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=53
+    - TOTAL_NODES=56
+    - PEERS=54:node54:8054,55:node55:8055,0:node0:8000,1:node1:8001,2:node2:8002,3:node3:8003,4:node4:8004
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=214
+    networks:
+    - tm-net
+  node54:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=54
+    - TOTAL_NODES=56
+    - PEERS=55:node55:8055,0:node0:8000,1:node1:8001,2:node2:8002,3:node3:8003,4:node4:8004,5:node5:8005
+    - RUST_LOG=info
+    - BEHAVIOR=standard
+    - LATENCY_MS=230
+    networks:
+    - tm-net
+  node55:
+    build: .
+    image: tendermint-sim-image
+    cap_add:
+    - NET_ADMIN
+    environment:
+    - NODE_ID=55
+    - TOTAL_NODES=56
+    - PEERS=0:node0:8000,1:node1:8001,2:node2:8002,3:node3:8003,4:node4:8004,5:node5:8005,6:node6:8006
+    - RUST_LOG=info
+    - BEHAVIOR=silent
+    - LATENCY_MS=297
+    networks:
+    - tm-net
+networks:
+  tm-net:
+    driver: bridge

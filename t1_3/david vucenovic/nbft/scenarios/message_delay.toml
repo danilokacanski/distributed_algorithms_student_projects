@@ -1,0 +1,14 @@
+name = "message_delay"
+description = "Scenario 03 - variable network latency and 5% message loss: consensus survives degraded conditions"
+
+n = 17
+m = 4
+seed = 21
+rounds = 2
+
+base_delay_ms = 40.0
+jitter_ms = 120.0
+loss_rate = 0.05
+
+phase_timeout_ms = 700.0
+client_timeout_ms = 2500.0

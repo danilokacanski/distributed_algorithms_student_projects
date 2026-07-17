@@ -1,0 +1,14 @@
+name = "happy_path"
+description = "No faults: n=17, m=4, two consecutive requests decided (the primary rotates between rounds)"
+
+n = 17
+m = 4
+seed = 42
+rounds = 2
+
+base_delay_ms = 5.0
+jitter_ms = 10.0
+loss_rate = 0.0
+
+phase_timeout_ms = 400.0
+client_timeout_ms = 1500.0

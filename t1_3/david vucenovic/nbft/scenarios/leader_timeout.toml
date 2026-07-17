@@ -1,0 +1,17 @@
+name = "leader_timeout"
+description = "Scenario 02 - the primary stays silent: client alert, timeout and a view change elect a new primary"
+
+n = 17
+m = 4
+seed = 6
+rounds = 1
+
+byz_count = 1
+byz_behavior = "silent_leader"
+byz_target = "primary"
+
+base_delay_ms = 5.0
+jitter_ms = 10.0
+phase_timeout_ms = 300.0
+client_timeout_ms = 1000.0
+client_retries = 4
